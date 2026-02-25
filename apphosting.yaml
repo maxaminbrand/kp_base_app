@@ -1,0 +1,56 @@
+# Firebase App Hosting configuration
+# Place this file at the repo root.
+
+runConfig:
+  # Adjust if needed
+  cpu: 1
+  memoryMiB: 1024
+  minInstances: 0
+  maxInstances: 2
+
+env:
+  # --- Public (safe to be in source; exposed to client build) ---
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyBK_JNB6PVhofsIv1IgJSRf-T-e5E8BLAc"
+    availability: [BUILD, RUNTIME]
+
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "fir-app-8a428.firebaseapp.com"
+    availability: [BUILD, RUNTIME]
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "fir-app-8a428"
+    availability: [BUILD, RUNTIME]
+
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "fir-app-8a428.firebasestorage.app"
+    availability: [BUILD, RUNTIME]
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:98898512544:web:c8e6fe0f6b173b30f557c5"
+    availability: [BUILD, RUNTIME]
+
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "98898512544"
+    availability: [BUILD, RUNTIME]
+
+  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    value: "BBwXM7ZvOhjiqUoEbdWC_kJJvEbg6pBbtggJ5QcdTINfqiwglNV3cCzx6SFph96i_iw4qeK_n_UQFWnEGrFukeU"
+    availability: [BUILD, RUNTIME]
+
+  # --- Server-only (DO NOT inline private keys; use App Hosting secrets) ---
+  - variable: FIREBASE_PROJECT_ID
+    value: "fir-app-8a428"
+    availability: [RUNTIME]
+
+  - variable: FIREBASE_CLIENT_EMAIL
+    value: "firebase-adminsdk-bmugq@fir-app-8a428.iam.gserviceaccount.com"
+    availability: [RUNTIME]
+
+  - variable: FIREBASE_PRIVATE_KEY
+    secret: "FIREBASE_PRIVATE_KEY"
+    availability: [RUNTIME]
+
+  - variable: FIREBASE_STORAGE_BUCKET
+    value: "fir-app-8a428.firebasestorage.app"
+    availability: [RUNTIME]
