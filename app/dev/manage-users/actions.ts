@@ -101,7 +101,7 @@ export async function listUsersAction(params: {
   return { mode: "list", users, nextPageToken: res.pageToken ?? null };
 }
 
-export async function updateUserAction(formData: FormData) {
+export async function updateUserAction(formData: FormData): Promise<void> {
   await requireDev();
 
   const uid = String(formData.get("uid") ?? "").trim();
@@ -132,5 +132,5 @@ export async function updateUserAction(formData: FormData) {
     { merge: true }
   );
 
-  return { ok: true as const };
+  return;
 }

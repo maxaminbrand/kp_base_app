@@ -54,3 +54,4 @@ env:
   - variable: FIREBASE_STORAGE_BUCKET
     value: "fir-app-8a428.firebasestorage.app"
     availability: [RUNTIME]
+
