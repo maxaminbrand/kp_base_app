@@ -41,17 +41,17 @@ env:
   # --- Server-only (DO NOT inline private keys; use App Hosting secrets) ---
   - variable: FIREBASE_PROJECT_ID
     value: "fir-app-8a428"
-    availability: [RUNTIME]
+    availability: [BUILD, RUNTIME]
 
   - variable: FIREBASE_CLIENT_EMAIL
     value: "firebase-adminsdk-bmugq@fir-app-8a428.iam.gserviceaccount.com"
-    availability: [RUNTIME]
+    availability: [BUILD, RUNTIME]
 
   - variable: FIREBASE_PRIVATE_KEY
     secret: "FIREBASE_PRIVATE_KEY"
-    availability: [RUNTIME]
+    availability: [BUILD, RUNTIME]
 
   - variable: FIREBASE_STORAGE_BUCKET
     value: "fir-app-8a428.firebasestorage.app"
-    availability: [RUNTIME]
+    availability: [BUILD, RUNTIME]
 
