@@ -1,139 +1,130 @@
 import admin from "firebase-admin";
 import { adminDb } from "@/lib/firebase/admin";
 
+export type SendPayload = {
+  title: string;
+  body?: string;
+  link?: string;
+};
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
 /**
- * Firestore storage convention:
+ * firebase-admin Message is a union (Token/Topic/Condition).
+ * In v13.6.1 there is no exported BaseMessage type, so we derive a safe base from TokenMessage.
+ */
+type FcmBaseMessage = Omit<admin.messaging.TokenMessage, "token">;
+
+function buildBaseMessage(payload: SendPayload): FcmBaseMessage {
+  const title = payload.title;
+  const body = payload.body ?? "";
+  const link = payload.link ?? "/";
+
+  return {
+    notification: { title, body },
+    data: { link },
+    webpush: {
+      fcmOptions: { link },
+    },
+  };
+}
+
+/**
+ * Reads token doc ids from:
  * profiles/{uid}/fcmTokens/{tokenDocId == token}
  */
 export async function getUserFcmTokens(uid: string): Promise<string[]> {
   const snap = await adminDb.collection("profiles").doc(uid).collection("fcmTokens").get();
   const tokens: string[] = [];
   snap.forEach((d) => {
-    const t = d.id;
-    if (t) tokens.push(t);
+    if (d.id) tokens.push(d.id);
   });
   return tokens;
 }
 
-export async function deleteUserFcmTokens(uid: string, tokens: string[]) {
-  if (!tokens.length) return;
-
-  const batch = adminDb.batch();
-  for (const t of tokens) {
-    const ref = adminDb.collection("profiles").doc(uid).collection("fcmTokens").doc(t);
-    batch.delete(ref);
-  }
-  await batch.commit();
-}
-
-function chunk<T>(arr: T[], size: number) {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
-
-function shouldDeleteToken(error: unknown): boolean {
-  const code = (error as any)?.code as string | undefined;
-  return code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token";
-}
-
-export type SendPayload = {
-  title: string;
-  body?: string;
-  link?: string; // used for webpush fcmOptions.link and data.link
-  data?: Record<string, string>; // extra data payload (strings only)
-};
-
-function buildMessageBase(payload: SendPayload) {
-  const title = payload.title || "Notification";
-  const body = payload.body || "";
-  const link = payload.link || "/";
-
-  return {
-    notification: { title, body },
-    data: { ...(payload.data ?? {}), link },
-    webpush: {
-      fcmOptions: { link },
-    },
-  } satisfies admin.messaging.Message;
-}
-
 export async function subscribeTokenToTopic(token: string, topic: string) {
-  if (!token) throw new Error("Missing token.");
-  if (!topic) throw new Error("Missing topic.");
-
-  const res = await admin.messaging().subscribeToTopic([token], topic);
-  return res;
+  return await admin.messaging().subscribeToTopic([token], topic);
 }
 
 export async function unsubscribeTokenFromTopic(token: string, topic: string) {
-  if (!token) throw new Error("Missing token.");
-  if (!topic) throw new Error("Missing topic.");
-
-  const res = await admin.messaging().unsubscribeFromTopic([token], topic);
-  return res;
+  return await admin.messaging().unsubscribeFromTopic([token], topic);
 }
 
 export async function sendToTopic(topic: string, payload: SendPayload) {
-  if (!topic) throw new Error("Missing topic.");
-  const base = buildMessageBase(payload);
+  const base = buildBaseMessage(payload);
 
-  const id = await admin.messaging().send({ ...(base as any), topic });
-  return { messageId: id };
+  const message: admin.messaging.TopicMessage = {
+    ...base,
+    topic,
+  };
+
+  const messageId = await admin.messaging().send(message);
+  return { ok: true as const, messageId };
 }
 
 export async function sendToAll(payload: SendPayload) {
-  // Convention: "all" topic
-  return sendToTopic("all", payload);
+  const base = buildBaseMessage(payload);
+
+  const message: admin.messaging.TopicMessage = {
+    ...base,
+    topic: "all",
+  };
+
+  const messageId = await admin.messaging().send(message);
+  return { ok: true as const, messageId };
 }
 
-/**
- * Sends to all tokens a user has registered under profiles/{uid}/fcmTokens/*.
- * Also deletes invalid tokens from Firestore based on FCM error codes.
- */
+async function deleteTokenDoc(uid: string, token: string) {
+  await adminDb.collection("profiles").doc(uid).collection("fcmTokens").doc(token).delete();
+}
+
+function isInvalidTokenError(code?: string) {
+  return code === "messaging/invalid-registration-token" || code === "messaging/registration-token-not-registered";
+}
+
 export async function sendToUser(uid: string, payload: SendPayload) {
-  if (!uid) throw new Error("Missing uid.");
-
   const tokens = await getUserFcmTokens(uid);
-  if (!tokens.length) return { ok: true as const, attempted: 0, success: 0, failures: 0, deleted: 0 };
 
-  const base = buildMessageBase(payload);
+  if (!tokens.length) {
+    return { ok: true as const, attempted: 0, success: 0, failures: 0, deleted: 0 };
+  }
 
-  let attempted = 0;
+  const base = buildBaseMessage(payload);
+
   let success = 0;
   let failures = 0;
-  const toDelete: string[] = [];
+  let deleted = 0;
 
-  // sendEachForMulticast supports up to 500 tokens per call
-  for (const batchTokens of chunk(tokens, 500)) {
-    attempted += batchTokens.length;
+  const chunkSize = 500;
+  for (let i = 0; i < tokens.length; i += chunkSize) {
+    const batch = tokens.slice(i, i + chunkSize);
 
     const res = await admin.messaging().sendEachForMulticast({
-      tokens: batchTokens,
-      notification: (base as any).notification,
-      data: (base as any).data,
-      webpush: (base as any).webpush,
+      ...base,
+      tokens: batch,
     });
 
-    success += res.successCount;
-    failures += res.failureCount;
+    success += res.successCount ?? 0;
+    failures += res.failureCount ?? 0;
 
-    res.responses.forEach((r, idx) => {
-      if (!r.success && shouldDeleteToken(r.error)) {
-        toDelete.push(batchTokens[idx]);
-      }
-    });
+    if (res.responses?.length) {
+      const deletes: Promise<void>[] = [];
+
+      res.responses.forEach((r, idx) => {
+        if (r.success) return;
+        const code = (r.error as any)?.code as string | undefined;
+        if (isInvalidTokenError(code)) {
+          const badToken = batch[idx];
+          deleted += 1;
+          deletes.push(deleteTokenDoc(uid, badToken));
+        }
+      });
+
+      if (deletes.length) await Promise.allSettled(deletes);
+    }
   }
 
-  if (toDelete.length) {
-    await deleteUserFcmTokens(uid, toDelete);
-  }
-
-  return {
-    ok: true as const,
-    attempted,
-    success,
-    failures,
-    deleted: toDelete.length,
-  };
+  return { ok: true as const, attempted: tokens.length, success, failures, deleted };
 }

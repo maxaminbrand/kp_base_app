@@ -17,8 +17,10 @@ export const metadata: Metadata = {
   title: "SBBN",
   description: "Small Business Buyers Network",
   manifest: "/manifest.webmanifest",
-  themeColor: "#0b0b0f",
 };
+export const viewport =  {
+  themeColor: "#0b0b0f",
+}
 
 const THEME_INIT_SCRIPT = `
 (function () {
