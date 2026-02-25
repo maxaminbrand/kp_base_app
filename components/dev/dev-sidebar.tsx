@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import type { DevNavGroup, DevNavGroupId } from "@/app/dev/dev-nav";
+import type { DevNavGroup, DevNavGroupId } from "@/components/dev/dev-nav";
 import {
   HomeIcon,
   ShieldIcon,
